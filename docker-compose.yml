@@ -7,9 +7,14 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+      network: host
       args:
         OPENCLAW_VERSION: ${OPENCLAW_VERSION:-main}
         OPENCLAW_DOCKER_APT_PACKAGES: ${OPENCLAW_DOCKER_APT_PACKAGES:-}
+        HTTP_PROXY: ${HTTP_PROXY:-}
+        HTTPS_PROXY: ${HTTPS_PROXY:-}
+        ALL_PROXY: ${ALL_PROXY:-}
+        NO_PROXY: ${NO_PROXY:-}
     environment:
       HOME: /home/node
       TERM: xterm-256color
