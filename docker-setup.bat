@@ -110,11 +110,13 @@ if not exist "data\openclaw\openclaw.json" (
   timeout /t 10 /nobreak >nul
   
   REM 创建最小配置文件（使用 gateway.auth.token 新格式）
+  REM 添加 gateway.mode=local 避免 Gateway 因缺少模式而反复重启
   echo [docker-setup] 创建最小配置文件...
   if not exist "data\openclaw" mkdir "data\openclaw"
   (
     echo {
     echo   "gateway": {
+    echo     "mode": "local",
     echo     "auth": {
     if defined GATEWAY_TOKEN (
       echo       "token": "%GATEWAY_TOKEN%"
@@ -132,12 +134,12 @@ if not exist "data\openclaw\openclaw.json" (
     docker compose run --rm %PROXY_ENV% openclaw-cli config set gateway.auth.token "%GATEWAY_TOKEN%" >nul 2>&1
   )
   
-  REM 尝试运行 onboard（可能需要交互）
-  echo [docker-setup] 运行 onboarding 配置向导（可能需要交互）...
-  echo [docker-setup] 提示: 如果出现交互提示，可按 Ctrl+C 跳过，稍后手动执行: docker compose run --rm openclaw-cli onboard
-  timeout /t 30 docker compose run --rm openclaw-cli onboard >nul 2>&1
+  REM Windows 下通常有交互终端，使用 -it 参数交互执行 onboarding
+  echo [docker-setup] 启动配置向导（onboarding）...
+  echo [docker-setup] 提示: 可按 Ctrl+C 跳过，稍后手动执行: docker compose run --rm -it openclaw-cli onboard
+  docker compose run --rm -it -e OPENCLAW_GATEWAY_TOKEN="%GATEWAY_TOKEN%" %PROXY_ENV% openclaw-cli onboard
   if errorlevel 1 (
-    echo [docker-setup] Onboarding 可能需要交互式输入，已跳过
+    echo [docker-setup] Onboarding 已取消或失败
     echo [docker-setup] Gateway 已使用最小配置启动，可通过 Control UI 或 CLI 完善配置
   )
 ) else (

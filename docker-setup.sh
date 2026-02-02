@@ -191,12 +191,14 @@ if [ ! -f "$CONFIG_FILE" ]; then
   
   # 创建最小配置文件（确保 Gateway 能启动）
   # 使用 gateway.auth.token（新格式），避免废弃警告
+  # 添加 gateway.mode=local 避免 Gateway 因缺少模式而反复重启
   echo "[docker-setup] 创建最小配置文件..."
   mkdir -p ./data/openclaw
   if [ -n "$GATEWAY_TOKEN" ]; then
     cat > "$CONFIG_FILE" <<EOF
 {
   "gateway": {
+    "mode": "local",
     "auth": {
       "token": "${GATEWAY_TOKEN}"
     }
@@ -207,6 +209,7 @@ EOF
     cat > "$CONFIG_FILE" <<EOF
 {
   "gateway": {
+    "mode": "local",
     "auth": {}
   }
 }
@@ -219,16 +222,22 @@ EOF
     docker compose run --rm ${PROXY_ENV} openclaw-cli config set gateway.auth.token "${GATEWAY_TOKEN}" 2>/dev/null || true
   fi
   
-  # 尝试运行 onboard（非交互式可能不支持，但尝试一下）
-  echo "[docker-setup] 运行 onboarding 配置向导（可能需要交互）..."
-  echo "[docker-setup] 提示: 如果出现交互提示，可按 Ctrl+C 跳过，稍后手动执行: docker compose run --rm openclaw-cli onboard"
-  
-  # 使用 timeout 和 yes/no pipe 尝试非交互式运行
-  # 如果 onboard 需要交互，这里会失败，但不影响 Gateway 启动
-  timeout 30 docker compose run --rm -e OPENCLAW_GATEWAY_TOKEN="${GATEWAY_TOKEN}" openclaw-cli onboard 2>/dev/null || {
-    echo "[docker-setup] Onboarding 可能需要交互式输入，已跳过"
-    echo "[docker-setup] Gateway 已使用最小配置启动，可通过 Control UI 或 CLI 完善配置"
-  }
+  # 只在有交互终端时执行 onboarding，避免非交互环境卡住
+  if [ -t 0 ] && [ -t 1 ]; then
+    # 有交互终端：使用 -it 参数交互执行
+    echo "[docker-setup] 检测到交互终端，启动配置向导（onboarding）..."
+    echo "[docker-setup] 提示: 可按 Ctrl+C 跳过，稍后手动执行: docker compose run --rm -it openclaw-cli onboard"
+    docker compose run --rm -it -e OPENCLAW_GATEWAY_TOKEN="${GATEWAY_TOKEN}" ${PROXY_ENV} openclaw-cli onboard || {
+      echo "[docker-setup] Onboarding 已取消或失败"
+      echo "[docker-setup] Gateway 已使用最小配置启动，可通过 Control UI 或 CLI 完善配置"
+    }
+  else
+    # 非交互环境：跳过并提示
+    echo "[docker-setup] 未检测到交互终端，跳过自动 onboarding"
+    echo "[docker-setup] Gateway 已使用最小配置启动，请手动执行配置向导:"
+    echo "  docker compose run --rm -it openclaw-cli onboard"
+    echo "[docker-setup] 或通过 Control UI 进行配置: http://127.0.0.1:18789/"
+  fi
 else
   echo "[docker-setup] 检测到已有配置文件，跳过 onboarding"
   
