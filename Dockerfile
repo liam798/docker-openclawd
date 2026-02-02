@@ -17,8 +17,8 @@ ARG OPENCLAW_VERSION=main
 # 构建时可选：额外安装的 apt 包，空格分隔
 ARG OPENCLAW_DOCKER_APT_PACKAGES=""
 
-# Bun（构建脚本需要）
-RUN curl -fsSL https://bun.sh/install | bash
+# Bun（构建脚本需要，清空代理避免宿主机代理导致下载失败）
+RUN http_proxy= https_proxy= HTTP_PROXY= HTTPS_PROXY= curl -fsSL https://bun.sh/install | bash
 ENV PATH="/root/.bun/bin:${PATH}"
 
 RUN corepack enable
@@ -39,11 +39,11 @@ RUN if [ -n "${OPENCLAW_DOCKER_APT_PACKAGES}" ]; then \
     && apt-get clean && rm -rf /var/lib/apt/lists/*; \
     fi
 
-# 依赖与构建（与官方 Dockerfile 一致）
-RUN pnpm install --frozen-lockfile
-RUN OPENCLAW_A2UI_SKIP_MISSING=1 pnpm build
+# 依赖与构建（与官方 Dockerfile 一致；清空代理避免 corepack/pnpm 走宿主机代理）
+RUN http_proxy= https_proxy= HTTP_PROXY= HTTPS_PROXY= pnpm install --frozen-lockfile
+RUN http_proxy= https_proxy= HTTP_PROXY= HTTPS_PROXY= OPENCLAW_A2UI_SKIP_MISSING=1 pnpm build
 ENV OPENCLAW_PREFER_PNPM=1
-RUN pnpm ui:build
+RUN http_proxy= https_proxy= HTTP_PROXY= HTTPS_PROXY= pnpm ui:build
 
 ENV NODE_ENV=production
 
