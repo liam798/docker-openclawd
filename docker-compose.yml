@@ -30,6 +30,7 @@ services:
       - "${OPENCLAW_GATEWAY_PORT:-18789}:18789"
       - "${OPENCLAW_BRIDGE_PORT:-18790}:18790"
       - "${OPENCLAW_CANVAS_PORT:-18793}:18793"
+    user: "1000:1000"
     init: true
     restart: unless-stopped
     command:
@@ -54,6 +55,7 @@ services:
     volumes:
       - ${OPENCLAW_CONFIG_DIR:-./data/openclaw}:/home/node/.openclaw
       - ${OPENCLAW_WORKSPACE_DIR:-./data/workspace}:/home/node/.openclaw/workspace
+    user: "1000:1000"
     stdin_open: true
     tty: true
     init: true
