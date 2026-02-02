@@ -121,8 +121,29 @@ else
   echo "[docker-setup] 检测到已有配置文件，跳过 onboarding"
   
   # 自动迁移旧配置格式（gateway.token -> gateway.auth.token）
-  if [ -f "$CONFIG_FILE" ] && grep -q '"token"' "$CONFIG_FILE" && ! grep -q '"auth".*"token"' "$CONFIG_FILE"; then
+  NEED_MIGRATION=false
+  if [ -f "$CONFIG_FILE" ]; then
+    # 检查是否存在旧格式的 gateway.token
+    if python3 - <<PY 2>/dev/null; then
+import json
+import pathlib
+p = pathlib.Path("$CONFIG_FILE")
+try:
+    data = json.loads(p.read_text())
+    if "gateway" in data and "token" in data["gateway"] and "auth" not in data["gateway"]:
+        exit(0)  # 需要迁移
+    exit(1)  # 不需要迁移
+except:
+    exit(1)
+PY
+    then
+      NEED_MIGRATION=true
+    fi
+  fi
+  
+  if [ "$NEED_MIGRATION" = true ]; then
     echo "[docker-setup] 检测到旧配置格式，自动迁移 gateway.token -> gateway.auth.token ..."
+    # 使用 Python 迁移配置
     python3 - <<PY 2>/dev/null || true
 import json
 import pathlib
@@ -130,8 +151,8 @@ import pathlib
 p = pathlib.Path("$CONFIG_FILE")
 try:
     data = json.loads(p.read_text())
-    if "gateway" in data:
-        token = data["gateway"].get("token")
+    if "gateway" in data and "token" in data["gateway"]:
+        token = data["gateway"]["token"]
         if token:
             data.setdefault("gateway", {}).setdefault("auth", {})["token"] = token
             data["gateway"].pop("token", None)
@@ -140,6 +161,11 @@ try:
 except Exception as e:
     pass
 PY
+    
+    # 迁移后重启 Gateway 使新配置生效
+    echo "[docker-setup] 重启 Gateway 使新配置生效..."
+    docker compose restart openclaw-gateway >/dev/null 2>&1 || true
+    sleep 3
   fi
 fi
 

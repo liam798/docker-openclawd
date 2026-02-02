@@ -99,7 +99,12 @@ if not exist "data\openclaw\openclaw.json" (
   
   REM 自动迁移旧配置格式（gateway.token -> gateway.auth.token）
   echo [docker-setup] 检查并迁移旧配置格式...
-  powershell -NoProfile -Command "$p = 'data\openclaw\openclaw.json'; if (Test-Path $p) { $data = Get-Content $p -Raw | ConvertFrom-Json; if ($data.gateway.token -and -not $data.gateway.auth.token) { $data.gateway.auth = @{token = $data.gateway.token}; $data.gateway.PSObject.Properties.Remove('token'); $data | ConvertTo-Json -Depth 10 | Set-Content $p -NoNewline; Write-Host '[docker-setup] 配置已迁移到 gateway.auth.token' } }" 2>nul
+  powershell -NoProfile -Command "$p = 'data\openclaw\openclaw.json'; if (Test-Path $p) { $data = Get-Content $p -Raw | ConvertFrom-Json; if ($data.gateway.token -and -not $data.gateway.auth.token) { $data.gateway.auth = @{token = $data.gateway.token}; $data.gateway.PSObject.Properties.Remove('token'); $data | ConvertTo-Json -Depth 10 | Set-Content $p -NoNewline; Write-Host '[docker-setup] 配置已迁移到 gateway.auth.token'; exit 0 } else { exit 1 } } else { exit 1 }" 2>nul
+  if not errorlevel 1 (
+    echo [docker-setup] 重启 Gateway 使新配置生效...
+    docker compose restart openclaw-gateway >nul 2>&1
+    timeout /t 3 /nobreak >nul
+  )
 )
 
 echo.
