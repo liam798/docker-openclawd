@@ -49,16 +49,17 @@ echo "[docker-setup] 等待 Gateway 就绪并安装飞书插件..."
 sleep 8
 
 # 自动安装飞书插件（若未安装）
+# 注意：清空代理环境变量，避免容器内 127.0.0.1 无法访问宿主机代理
 echo "[docker-setup] 检查并安装飞书插件..."
-if docker compose run --rm openclaw-cli plugins list 2>/dev/null | grep -q "feishu"; then
+if docker compose run --rm -e HTTP_PROXY= -e HTTPS_PROXY= -e http_proxy= -e https_proxy= -e ALL_PROXY= -e all_proxy= -e NO_PROXY="*" -e no_proxy="*" openclaw-cli plugins list 2>/dev/null | grep -q "feishu"; then
   echo "[docker-setup] 飞书插件已安装"
 else
   echo "[docker-setup] 正在安装飞书插件 @m1heng-clawd/feishu ..."
-  if docker compose run --rm openclaw-cli plugins install @m1heng-clawd/feishu 2>/dev/null; then
+  if docker compose run --rm -e HTTP_PROXY= -e HTTPS_PROXY= -e http_proxy= -e https_proxy= -e ALL_PROXY= -e all_proxy= -e NO_PROXY="*" -e no_proxy="*" openclaw-cli plugins install @m1heng-clawd/feishu 2>/dev/null; then
     echo "[docker-setup] 飞书插件安装成功"
   else
     echo "[docker-setup] 警告: 飞书插件安装失败，可稍后手动安装:"
-    echo "  docker compose run --rm openclaw-cli plugins install @m1heng-clawd/feishu"
+    echo "  HTTP_PROXY= HTTPS_PROXY= docker compose run --rm openclaw-cli plugins install @m1heng-clawd/feishu"
   fi
 fi
 
@@ -77,20 +78,33 @@ if [ ! -f "$CONFIG_FILE" ]; then
   done
   
   # 创建最小配置文件（确保 Gateway 能启动）
+  # 使用 gateway.auth.token（新格式），避免废弃警告
   echo "[docker-setup] 创建最小配置文件..."
   mkdir -p ./data/openclaw
-  cat > "$CONFIG_FILE" <<EOF
+  if [ -n "$GATEWAY_TOKEN" ]; then
+    cat > "$CONFIG_FILE" <<EOF
 {
   "gateway": {
-    "token": "${GATEWAY_TOKEN:-}"
+    "auth": {
+      "token": "${GATEWAY_TOKEN}"
+    }
   }
 }
 EOF
+  else
+    cat > "$CONFIG_FILE" <<EOF
+{
+  "gateway": {
+    "auth": {}
+  }
+}
+EOF
+  fi
   
-  # 如果有 token，通过 CLI 设置（更可靠）
+  # 如果有 token，通过 CLI 设置（使用新格式）
   if [ -n "$GATEWAY_TOKEN" ]; then
     echo "[docker-setup] 设置 Gateway token..."
-    docker compose run --rm openclaw-cli config set gateway.token "${GATEWAY_TOKEN}" 2>/dev/null || true
+    docker compose run --rm -e HTTP_PROXY= -e HTTPS_PROXY= -e http_proxy= -e https_proxy= -e ALL_PROXY= -e all_proxy= -e NO_PROXY="*" -e no_proxy="*" openclaw-cli config set gateway.auth.token "${GATEWAY_TOKEN}" 2>/dev/null || true
   fi
   
   # 尝试运行 onboard（非交互式可能不支持，但尝试一下）
@@ -105,6 +119,28 @@ EOF
   }
 else
   echo "[docker-setup] 检测到已有配置文件，跳过 onboarding"
+  
+  # 自动迁移旧配置格式（gateway.token -> gateway.auth.token）
+  if [ -f "$CONFIG_FILE" ] && grep -q '"token"' "$CONFIG_FILE" && ! grep -q '"auth".*"token"' "$CONFIG_FILE"; then
+    echo "[docker-setup] 检测到旧配置格式，自动迁移 gateway.token -> gateway.auth.token ..."
+    python3 - <<PY 2>/dev/null || true
+import json
+import pathlib
+
+p = pathlib.Path("$CONFIG_FILE")
+try:
+    data = json.loads(p.read_text())
+    if "gateway" in data:
+        token = data["gateway"].get("token")
+        if token:
+            data.setdefault("gateway", {}).setdefault("auth", {})["token"] = token
+            data["gateway"].pop("token", None)
+            p.write_text(json.dumps(data, ensure_ascii=False, indent=2))
+            print("配置已迁移")
+except Exception as e:
+    pass
+PY
+  fi
 fi
 
 echo ""

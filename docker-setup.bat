@@ -39,14 +39,15 @@ echo [docker-setup] 等待 Gateway 就绪并安装飞书插件...
 timeout /t 8 /nobreak >nul
 
 REM 自动安装飞书插件（若未安装）
+REM 注意：清空代理环境变量，避免容器内 127.0.0.1 无法访问宿主机代理
 echo [docker-setup] 检查并安装飞书插件...
-docker compose run --rm openclaw-cli plugins list 2>nul | findstr /i "feishu" >nul
+docker compose run --rm -e HTTP_PROXY= -e HTTPS_PROXY= -e http_proxy= -e https_proxy= -e ALL_PROXY= -e all_proxy= -e NO_PROXY=* -e no_proxy=* openclaw-cli plugins list 2>nul | findstr /i "feishu" >nul
 if errorlevel 1 (
   echo [docker-setup] 正在安装飞书插件 @m1heng-clawd/feishu ...
-  docker compose run --rm openclaw-cli plugins install @m1heng-clawd/feishu >nul 2>&1
+  docker compose run --rm -e HTTP_PROXY= -e HTTPS_PROXY= -e http_proxy= -e https_proxy= -e ALL_PROXY= -e all_proxy= -e NO_PROXY=* -e no_proxy=* openclaw-cli plugins install @m1heng-clawd/feishu >nul 2>&1
   if errorlevel 1 (
     echo [docker-setup] 警告: 飞书插件安装失败，可稍后手动安装:
-    echo   docker compose run --rm openclaw-cli plugins install @m1heng-clawd/feishu
+    echo   HTTP_PROXY= HTTPS_PROXY= docker compose run --rm openclaw-cli plugins install @m1heng-clawd/feishu
   ) else (
     echo [docker-setup] 飞书插件安装成功
   )
@@ -62,25 +63,27 @@ if not exist "data\openclaw\openclaw.json" (
   echo [docker-setup] 等待 Gateway 完全就绪...
   timeout /t 10 /nobreak >nul
   
-  REM 创建最小配置文件
+  REM 创建最小配置文件（使用 gateway.auth.token 新格式）
   echo [docker-setup] 创建最小配置文件...
   if not exist "data\openclaw" mkdir "data\openclaw"
   (
     echo {
     echo   "gateway": {
+    echo     "auth": {
     if defined GATEWAY_TOKEN (
-      echo     "token": "%GATEWAY_TOKEN%"
+      echo       "token": "%GATEWAY_TOKEN%"
     ) else (
-      echo     "token": ""
+      echo       "token": ""
     )
+    echo     }
     echo   }
     echo }
   ) > "data\openclaw\openclaw.json"
   
-  REM 如果有 token，通过 CLI 设置
+  REM 如果有 token，通过 CLI 设置（使用新格式）
   if defined GATEWAY_TOKEN (
     echo [docker-setup] 设置 Gateway token...
-    docker compose run --rm openclaw-cli config set gateway.token "%GATEWAY_TOKEN%" >nul 2>&1
+    docker compose run --rm -e HTTP_PROXY= -e HTTPS_PROXY= -e http_proxy= -e https_proxy= -e ALL_PROXY= -e all_proxy= -e NO_PROXY=* -e no_proxy=* openclaw-cli config set gateway.auth.token "%GATEWAY_TOKEN%" >nul 2>&1
   )
   
   REM 尝试运行 onboard（可能需要交互）
@@ -93,6 +96,10 @@ if not exist "data\openclaw\openclaw.json" (
   )
 ) else (
   echo [docker-setup] 检测到已有配置文件，跳过 onboarding
+  
+  REM 自动迁移旧配置格式（gateway.token -> gateway.auth.token）
+  echo [docker-setup] 检查并迁移旧配置格式...
+  powershell -NoProfile -Command "$p = 'data\openclaw\openclaw.json'; if (Test-Path $p) { $data = Get-Content $p -Raw | ConvertFrom-Json; if ($data.gateway.token -and -not $data.gateway.auth.token) { $data.gateway.auth = @{token = $data.gateway.token}; $data.gateway.PSObject.Properties.Remove('token'); $data | ConvertTo-Json -Depth 10 | Set-Content $p -NoNewline; Write-Host '[docker-setup] 配置已迁移到 gateway.auth.token' } }" 2>nul
 )
 
 echo.
