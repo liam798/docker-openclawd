@@ -16,6 +16,10 @@ REM 确保数据目录存在
 if not exist "data\openclaw" mkdir "data\openclaw"
 if not exist "data\workspace" mkdir "data\workspace"
 
+REM 读取 Gateway token（用于后续配置）
+for /f "tokens=2 delims==" %%a in ('findstr /b "OPENCLAW_GATEWAY_TOKEN=" .env 2^>nul') do set GATEWAY_TOKEN=%%a
+set GATEWAY_TOKEN=%GATEWAY_TOKEN:"=%
+
 REM 若 openclaw-src 不存在则自动克隆
 if not exist "openclaw-src\.git" (
   echo [docker-setup] 正在克隆 openclaw/openclaw 到 openclaw-src/ ...
@@ -50,12 +54,57 @@ if errorlevel 1 (
   echo [docker-setup] 飞书插件已安装
 )
 
+REM 自动执行 onboarding（若配置不存在）
+if not exist "data\openclaw\openclaw.json" (
+  echo [docker-setup] 检测到首次运行，执行自动配置（onboarding）...
+  
+  REM 等待 Gateway 完全就绪
+  echo [docker-setup] 等待 Gateway 完全就绪...
+  timeout /t 10 /nobreak >nul
+  
+  REM 创建最小配置文件
+  echo [docker-setup] 创建最小配置文件...
+  if not exist "data\openclaw" mkdir "data\openclaw"
+  (
+    echo {
+    echo   "gateway": {
+    if defined GATEWAY_TOKEN (
+      echo     "token": "%GATEWAY_TOKEN%"
+    ) else (
+      echo     "token": ""
+    )
+    echo   }
+    echo }
+  ) > "data\openclaw\openclaw.json"
+  
+  REM 如果有 token，通过 CLI 设置
+  if defined GATEWAY_TOKEN (
+    echo [docker-setup] 设置 Gateway token...
+    docker compose run --rm openclaw-cli config set gateway.token "%GATEWAY_TOKEN%" >nul 2>&1
+  )
+  
+  REM 尝试运行 onboard（可能需要交互）
+  echo [docker-setup] 运行 onboarding 配置向导（可能需要交互）...
+  echo [docker-setup] 提示: 如果出现交互提示，可按 Ctrl+C 跳过，稍后手动执行: docker compose run --rm openclaw-cli onboard
+  timeout /t 30 docker compose run --rm openclaw-cli onboard >nul 2>&1
+  if errorlevel 1 (
+    echo [docker-setup] Onboarding 可能需要交互式输入，已跳过
+    echo [docker-setup] Gateway 已使用最小配置启动，可通过 Control UI 或 CLI 完善配置
+  )
+) else (
+  echo [docker-setup] 检测到已有配置文件，跳过 onboarding
+)
+
 echo.
-echo Gateway 已启动。
+echo ✅ Gateway 已启动并配置完成！
 echo   - Control UI: http://127.0.0.1:18789/
-echo   - 若设置了 OPENCLAW_GATEWAY_TOKEN，请在 Control UI 设置中填入该令牌。
+if defined GATEWAY_TOKEN (
+  echo   - Gateway Token: %GATEWAY_TOKEN%
+  echo   - 请在 Control UI 设置中填入该令牌
+)
 echo.
-echo 首次使用建议执行: docker compose run --rm openclaw-cli onboard
-echo 配置飞书通道: docker compose run --rm openclaw-cli config set channels.feishu.appId "YOUR_APP_ID"
-echo 查看日志: docker compose logs -f openclaw-gateway
+echo 后续配置：
+echo   - 配置飞书通道: docker compose run --rm openclaw-cli config set channels.feishu.appId "YOUR_APP_ID"
+echo   - 查看日志: docker compose logs -f openclaw-gateway
+echo   - 完整配置向导: docker compose run --rm openclaw-cli onboard
 endlocal

@@ -23,7 +23,14 @@ cd docker-openclawd
 docker-setup.bat
 ```
 
-脚本会：若缺少 `openclaw-src/` 则自动克隆、创建 `.env`、生成 Gateway 令牌、构建镜像并启动 Gateway。
+脚本会自动完成：
+- 若缺少 `openclaw-src/` 则自动克隆
+- 创建 `.env` 并生成 Gateway 令牌
+- 构建镜像并启动 Gateway
+- 自动安装飞书插件
+- **自动执行 onboarding 配置**（首次运行）
+
+**一键安装后即可使用！** Gateway 会以最小配置启动，可通过 Control UI 或 CLI 完善配置。
 
 **方式二：手动编译安装**
 
@@ -53,13 +60,15 @@ docker compose up -d openclaw-gateway
 
 ## 首次配置（Onboarding）
 
-建议先跑一次引导，生成基础配置与 Gateway 令牌：
+**一键脚本会自动执行 onboarding**，创建最小配置并启动 Gateway。
+
+如需完整配置向导（模型、通道等），可手动执行：
 
 ```bash
 docker compose run --rm openclaw-cli onboard
 ```
 
-按提示完成模型、通道等配置。完成后可再次执行 `docker compose up -d openclaw-gateway` 启动网关。
+按提示完成模型、通道等配置。配置会自动保存，无需重启 Gateway。
 
 ## 通道登录示例
 
