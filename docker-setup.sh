@@ -56,9 +56,25 @@ detect_container_proxy() {
       # macOS/Windows: 使用 host.docker.internal
       echo "$host_proxy" | sed 's|127.0.0.1|host.docker.internal|g' | sed 's|localhost|host.docker.internal|g'
     else
-      # Linux: 尝试检测 Docker 网关 IP（默认 172.17.0.1）
-      # 如果无法访问，回退到 host.docker.internal（Docker 20.10+ 支持）
-      echo "$host_proxy" | sed 's|127.0.0.1|host.docker.internal|g' | sed 's|localhost|host.docker.internal|g'
+      # Linux: 检测 Docker 网关 IP
+      local docker_gateway_ip="172.17.0.1"
+      
+      # 尝试从 docker network inspect 获取网关 IP
+      if command -v docker >/dev/null 2>&1; then
+        local gateway=$(docker network inspect bridge --format '{{range .IPAM.Config}}{{.Gateway}}{{end}}' 2>/dev/null | head -n1)
+        if [ -n "$gateway" ] && [ "$gateway" != "<no value>" ]; then
+          docker_gateway_ip="$gateway"
+        else
+          # 尝试从 ip route 获取
+          local route_gateway=$(ip route show default 2>/dev/null | awk '/default/ {print $3}' | head -n1)
+          if [ -n "$route_gateway" ]; then
+            docker_gateway_ip="$route_gateway"
+          fi
+        fi
+      fi
+      
+      # 将 127.0.0.1 替换为检测到的 Docker 网关 IP
+      echo "$host_proxy" | sed "s|127.0.0.1|${docker_gateway_ip}|g" | sed "s|localhost|${docker_gateway_ip}|g"
     fi
   else
     # 如果代理地址不是 127.0.0.1，直接使用
