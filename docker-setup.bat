@@ -21,6 +21,22 @@ REM 读取 Gateway token（用于后续配置）
 for /f "tokens=2 delims==" %%a in ('findstr /b "OPENCLAW_GATEWAY_TOKEN=" .env 2^>nul') do set GATEWAY_TOKEN=%%a
 set GATEWAY_TOKEN=%GATEWAY_TOKEN:"=%
 
+REM 检测并转换宿主机代理地址（容器内可访问）
+REM Windows/macOS 使用 host.docker.internal，Linux 也尝试使用（Docker 20.10+ 支持）
+set CONTAINER_HTTP_PROXY=
+for /f "tokens=2 delims==" %%a in ('findstr /b "HTTP_PROXY=" .env 2^>nul') do set HOST_PROXY=%%a
+set HOST_PROXY=%HOST_PROXY:"=%
+if defined HOST_PROXY (
+  echo %HOST_PROXY% | findstr /i "127.0.0.1 localhost" >nul
+  if not errorlevel 1 (
+    REM 将 127.0.0.1 或 localhost 替换为 host.docker.internal
+    for /f "delims=" %%p in ('powershell -NoProfile -Command "$p='%HOST_PROXY%'; $p -replace '127.0.0.1','host.docker.internal' -replace 'localhost','host.docker.internal'"') do set CONTAINER_HTTP_PROXY=%%p
+  ) else (
+    set CONTAINER_HTTP_PROXY=%HOST_PROXY%
+  )
+)
+set CONTAINER_HTTPS_PROXY=%CONTAINER_HTTP_PROXY%
+
 REM 若 openclaw-src 不存在则自动克隆
 if not exist "openclaw-src\.git" (
   echo [docker-setup] 正在克隆 openclaw/openclaw 到 openclaw-src/ ...
@@ -40,15 +56,26 @@ echo [docker-setup] 等待 Gateway 就绪并安装飞书插件...
 timeout /t 8 /nobreak >nul
 
 REM 自动安装飞书插件（若未安装）
-REM 注意：清空代理环境变量，避免容器内 127.0.0.1 无法访问宿主机代理
+REM 如果检测到宿主机代理，使用转换后的地址（容器可访问）；否则不使用代理
 echo [docker-setup] 检查并安装飞书插件...
-docker compose run --rm -e HTTP_PROXY= -e HTTPS_PROXY= -e http_proxy= -e https_proxy= -e ALL_PROXY= -e all_proxy= -e NO_PROXY=* -e no_proxy=* openclaw-cli plugins list 2>nul | findstr /i "feishu" >nul
+if defined CONTAINER_HTTP_PROXY (
+  echo [docker-setup] 检测到代理配置，使用容器可访问的代理地址: %CONTAINER_HTTP_PROXY%
+  set PROXY_ENV=-e HTTP_PROXY=%CONTAINER_HTTP_PROXY% -e HTTPS_PROXY=%CONTAINER_HTTPS_PROXY% -e http_proxy=%CONTAINER_HTTP_PROXY% -e https_proxy=%CONTAINER_HTTPS_PROXY% -e NO_PROXY=localhost,127.0.0.1,::1 -e no_proxy=localhost,127.0.0.1,::1
+) else (
+  set PROXY_ENV=-e HTTP_PROXY= -e HTTPS_PROXY= -e http_proxy= -e https_proxy= -e NO_PROXY=* -e no_proxy=*
+)
+
+docker compose run --rm %PROXY_ENV% openclaw-cli plugins list 2>nul | findstr /i "feishu" >nul
 if errorlevel 1 (
   echo [docker-setup] 正在安装飞书插件 @m1heng-clawd/feishu ...
-  docker compose run --rm -e HTTP_PROXY= -e HTTPS_PROXY= -e http_proxy= -e https_proxy= -e ALL_PROXY= -e all_proxy= -e NO_PROXY=* -e no_proxy=* openclaw-cli plugins install @m1heng-clawd/feishu >nul 2>&1
+  docker compose run --rm %PROXY_ENV% openclaw-cli plugins install @m1heng-clawd/feishu >nul 2>&1
   if errorlevel 1 (
     echo [docker-setup] 警告: 飞书插件安装失败，可稍后手动安装:
-    echo   HTTP_PROXY= HTTPS_PROXY= docker compose run --rm openclaw-cli plugins install @m1heng-clawd/feishu
+    if defined CONTAINER_HTTP_PROXY (
+      echo   HTTP_PROXY=%CONTAINER_HTTP_PROXY% HTTPS_PROXY=%CONTAINER_HTTPS_PROXY% docker compose run --rm openclaw-cli plugins install @m1heng-clawd/feishu
+    ) else (
+      echo   docker compose run --rm openclaw-cli plugins install @m1heng-clawd/feishu
+    )
   ) else (
     echo [docker-setup] 飞书插件安装成功
   )
@@ -84,7 +111,7 @@ if not exist "data\openclaw\openclaw.json" (
   REM 如果有 token，通过 CLI 设置（使用新格式）
   if defined GATEWAY_TOKEN (
     echo [docker-setup] 设置 Gateway token...
-    docker compose run --rm -e HTTP_PROXY= -e HTTPS_PROXY= -e http_proxy= -e https_proxy= -e ALL_PROXY= -e all_proxy= -e NO_PROXY=* -e no_proxy=* openclaw-cli config set gateway.auth.token "%GATEWAY_TOKEN%" >nul 2>&1
+    docker compose run --rm %PROXY_ENV% openclaw-cli config set gateway.auth.token "%GATEWAY_TOKEN%" >nul 2>&1
   )
   
   REM 尝试运行 onboard（可能需要交互）
