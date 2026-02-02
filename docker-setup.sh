@@ -69,6 +69,54 @@ detect_container_proxy() {
 CONTAINER_HTTP_PROXY=$(detect_container_proxy)
 CONTAINER_HTTPS_PROXY="${CONTAINER_HTTP_PROXY}"
 
+# 自动检测并写入运行时代理配置到 .env
+if [ -n "$CONTAINER_HTTP_PROXY" ]; then
+  echo "[docker-setup] 检测到代理配置: ${CONTAINER_HTTP_PROXY}"
+  echo "[docker-setup] 自动配置运行时代理（已转换为容器可访问地址）..."
+  
+  # 更新或添加 OPENCLAW_RUNTIME_HTTP_PROXY
+  if grep -q '^OPENCLAW_RUNTIME_HTTP_PROXY=' .env 2>/dev/null; then
+    sed -i.bak "s|^OPENCLAW_RUNTIME_HTTP_PROXY=.*|OPENCLAW_RUNTIME_HTTP_PROXY=${CONTAINER_HTTP_PROXY}|" .env
+  else
+    echo "OPENCLAW_RUNTIME_HTTP_PROXY=${CONTAINER_HTTP_PROXY}" >> .env
+  fi
+  
+  # 更新或添加 OPENCLAW_RUNTIME_HTTPS_PROXY
+  if grep -q '^OPENCLAW_RUNTIME_HTTPS_PROXY=' .env 2>/dev/null; then
+    sed -i.bak "s|^OPENCLAW_RUNTIME_HTTPS_PROXY=.*|OPENCLAW_RUNTIME_HTTPS_PROXY=${CONTAINER_HTTPS_PROXY}|" .env
+  else
+    echo "OPENCLAW_RUNTIME_HTTPS_PROXY=${CONTAINER_HTTPS_PROXY}" >> .env
+  fi
+  
+  # 更新或添加 OPENCLAW_RUNTIME_ALL_PROXY
+  if grep -q '^OPENCLAW_RUNTIME_ALL_PROXY=' .env 2>/dev/null; then
+    sed -i.bak "s|^OPENCLAW_RUNTIME_ALL_PROXY=.*|OPENCLAW_RUNTIME_ALL_PROXY=${CONTAINER_HTTP_PROXY}|" .env
+  else
+    echo "OPENCLAW_RUNTIME_ALL_PROXY=${CONTAINER_HTTP_PROXY}" >> .env
+  fi
+  
+  # 清理备份文件
+  rm -f .env.bak 2>/dev/null || true
+else
+  echo "[docker-setup] 未检测到代理配置，将不使用代理运行"
+  echo "[docker-setup] 提示: 如需配置代理，可在 .env 中设置 OPENCLAW_RUNTIME_HTTP_PROXY 等变量"
+  
+  # 确保运行时代理变量为空（如果存在则清空，不存在则添加空值）
+  if grep -q '^OPENCLAW_RUNTIME_HTTP_PROXY=' .env 2>/dev/null; then
+    sed -i.bak "s|^OPENCLAW_RUNTIME_HTTP_PROXY=.*|OPENCLAW_RUNTIME_HTTP_PROXY=|" .env
+  else
+    echo "OPENCLAW_RUNTIME_HTTP_PROXY=" >> .env
+  fi
+  
+  if grep -q '^OPENCLAW_RUNTIME_HTTPS_PROXY=' .env 2>/dev/null; then
+    sed -i.bak "s|^OPENCLAW_RUNTIME_HTTPS_PROXY=.*|OPENCLAW_RUNTIME_HTTPS_PROXY=|" .env
+  else
+    echo "OPENCLAW_RUNTIME_HTTPS_PROXY=" >> .env
+  fi
+  
+  rm -f .env.bak 2>/dev/null || true
+fi
+
 # 若 openclaw-src/ 不存在则自动克隆（构建时 COPY 进镜像）
 if [ ! -d "openclaw-src/.git" ]; then
   echo "[docker-setup] 正在克隆 openclaw/openclaw 到 openclaw-src/ ..."
@@ -86,12 +134,11 @@ echo "[docker-setup] 等待 Gateway 就绪并安装飞书插件..."
 sleep 8
 
 # 自动安装飞书插件（若未安装）
-# 如果检测到宿主机代理，使用转换后的地址（容器可访问）；否则不使用代理
+# 使用已配置的运行时代理（从 .env 读取，已转换为容器可访问地址）
 echo "[docker-setup] 检查并安装飞书插件..."
 PROXY_ENV=""
 if [ -n "$CONTAINER_HTTP_PROXY" ]; then
   PROXY_ENV="-e HTTP_PROXY=${CONTAINER_HTTP_PROXY} -e HTTPS_PROXY=${CONTAINER_HTTPS_PROXY} -e http_proxy=${CONTAINER_HTTP_PROXY} -e https_proxy=${CONTAINER_HTTPS_PROXY} -e NO_PROXY=localhost,127.0.0.1,::1 -e no_proxy=localhost,127.0.0.1,::1"
-  echo "[docker-setup] 检测到代理配置，使用容器可访问的代理地址: ${CONTAINER_HTTP_PROXY}"
 else
   PROXY_ENV="-e HTTP_PROXY= -e HTTPS_PROXY= -e http_proxy= -e https_proxy= -e NO_PROXY=* -e no_proxy=*"
 fi

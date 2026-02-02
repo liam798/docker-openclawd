@@ -23,9 +23,17 @@ set GATEWAY_TOKEN=%GATEWAY_TOKEN:"=%
 
 REM 检测并转换宿主机代理地址（容器内可访问）
 REM Windows/macOS 使用 host.docker.internal，Linux 也尝试使用（Docker 20.10+ 支持）
+REM 检测宿主机代理（优先从环境变量，其次从 .env）
 set CONTAINER_HTTP_PROXY=
-for /f "tokens=2 delims==" %%a in ('findstr /b "HTTP_PROXY=" .env 2^>nul') do set HOST_PROXY=%%a
-set HOST_PROXY=%HOST_PROXY:"=%
+if defined HTTP_PROXY (
+  set HOST_PROXY=%HTTP_PROXY%
+) else if defined http_proxy (
+  set HOST_PROXY=%http_proxy%
+) else (
+  for /f "tokens=2 delims==" %%a in ('findstr /b "HTTP_PROXY=" .env 2^>nul') do set HOST_PROXY=%%a
+  set HOST_PROXY=%HOST_PROXY:"=%
+)
+
 if defined HOST_PROXY (
   echo %HOST_PROXY% | findstr /i "127.0.0.1 localhost" >nul
   if not errorlevel 1 (
@@ -36,6 +44,17 @@ if defined HOST_PROXY (
   )
 )
 set CONTAINER_HTTPS_PROXY=%CONTAINER_HTTP_PROXY%
+
+REM 自动检测并写入运行时代理配置到 .env
+if defined CONTAINER_HTTP_PROXY (
+  echo [docker-setup] 检测到代理配置: %CONTAINER_HTTP_PROXY%
+  echo [docker-setup] 自动配置运行时代理（已转换为容器可访问地址）...
+  powershell -NoProfile -Command "$c = Get-Content .env -Raw -ErrorAction SilentlyContinue; if (-not $c) { $c = '' }; $c = $c -replace '(?m)^OPENCLAW_RUNTIME_HTTP_PROXY=.*', \"OPENCLAW_RUNTIME_HTTP_PROXY=%CONTAINER_HTTP_PROXY%\"; if ($c -notmatch '(?m)^OPENCLAW_RUNTIME_HTTP_PROXY=') { $c = $c.TrimEnd() + \"`nOPENCLAW_RUNTIME_HTTP_PROXY=%CONTAINER_HTTP_PROXY%`n\" }; $c = $c -replace '(?m)^OPENCLAW_RUNTIME_HTTPS_PROXY=.*', \"OPENCLAW_RUNTIME_HTTPS_PROXY=%CONTAINER_HTTPS_PROXY%\"; if ($c -notmatch '(?m)^OPENCLAW_RUNTIME_HTTPS_PROXY=') { $c = $c.TrimEnd() + \"`nOPENCLAW_RUNTIME_HTTPS_PROXY=%CONTAINER_HTTPS_PROXY%`n\" }; $c = $c -replace '(?m)^OPENCLAW_RUNTIME_ALL_PROXY=.*', \"OPENCLAW_RUNTIME_ALL_PROXY=%CONTAINER_HTTP_PROXY%\"; if ($c -notmatch '(?m)^OPENCLAW_RUNTIME_ALL_PROXY=') { $c = $c.TrimEnd() + \"`nOPENCLAW_RUNTIME_ALL_PROXY=%CONTAINER_HTTP_PROXY%`n\" }; Set-Content .env $c -NoNewline"
+) else (
+  echo [docker-setup] 未检测到代理配置，将不使用代理运行
+  echo [docker-setup] 提示: 如需配置代理，可在 .env 中设置 OPENCLAW_RUNTIME_HTTP_PROXY 等变量
+  powershell -NoProfile -Command "$c = Get-Content .env -Raw -ErrorAction SilentlyContinue; if (-not $c) { $c = '' }; $c = $c -replace '(?m)^OPENCLAW_RUNTIME_HTTP_PROXY=.*', \"OPENCLAW_RUNTIME_HTTP_PROXY=\"; if ($c -notmatch '(?m)^OPENCLAW_RUNTIME_HTTP_PROXY=') { $c = $c.TrimEnd() + \"`nOPENCLAW_RUNTIME_HTTP_PROXY=`n\" }; $c = $c -replace '(?m)^OPENCLAW_RUNTIME_HTTPS_PROXY=.*', \"OPENCLAW_RUNTIME_HTTPS_PROXY=\"; if ($c -notmatch '(?m)^OPENCLAW_RUNTIME_HTTPS_PROXY=') { $c = $c.TrimEnd() + \"`nOPENCLAW_RUNTIME_HTTPS_PROXY=`n\" }; Set-Content .env $c -NoNewline"
+)
 
 REM 若 openclaw-src 不存在则自动克隆
 if not exist "openclaw-src\.git" (
@@ -56,10 +75,9 @@ echo [docker-setup] 等待 Gateway 就绪并安装飞书插件...
 timeout /t 8 /nobreak >nul
 
 REM 自动安装飞书插件（若未安装）
-REM 如果检测到宿主机代理，使用转换后的地址（容器可访问）；否则不使用代理
+REM 使用已配置的运行时代理（从 .env 读取，已转换为容器可访问地址）
 echo [docker-setup] 检查并安装飞书插件...
 if defined CONTAINER_HTTP_PROXY (
-  echo [docker-setup] 检测到代理配置，使用容器可访问的代理地址: %CONTAINER_HTTP_PROXY%
   set PROXY_ENV=-e HTTP_PROXY=%CONTAINER_HTTP_PROXY% -e HTTPS_PROXY=%CONTAINER_HTTPS_PROXY% -e http_proxy=%CONTAINER_HTTP_PROXY% -e https_proxy=%CONTAINER_HTTPS_PROXY% -e NO_PROXY=localhost,127.0.0.1,::1 -e no_proxy=localhost,127.0.0.1,::1
 ) else (
   set PROXY_ENV=-e HTTP_PROXY= -e HTTPS_PROXY= -e http_proxy= -e https_proxy= -e NO_PROXY=* -e no_proxy=*
