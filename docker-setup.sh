@@ -41,10 +41,29 @@ docker compose build
 echo "[docker-setup] 启动 Gateway..."
 docker compose up -d openclaw-gateway
 
+# 等待 Gateway 启动并自动安装飞书插件
+echo "[docker-setup] 等待 Gateway 就绪并安装飞书插件..."
+sleep 8
+
+# 自动安装飞书插件（若未安装）
+echo "[docker-setup] 检查并安装飞书插件..."
+if docker compose run --rm openclaw-cli plugins list 2>/dev/null | grep -q "feishu"; then
+  echo "[docker-setup] 飞书插件已安装"
+else
+  echo "[docker-setup] 正在安装飞书插件 @m1heng-clawd/feishu ..."
+  if docker compose run --rm openclaw-cli plugins install @m1heng-clawd/feishu 2>/dev/null; then
+    echo "[docker-setup] 飞书插件安装成功"
+  else
+    echo "[docker-setup] 警告: 飞书插件安装失败，可稍后手动安装:"
+    echo "  docker compose run --rm openclaw-cli plugins install @m1heng-clawd/feishu"
+  fi
+fi
+
 echo ""
 echo "Gateway 已启动。"
 echo "  - Control UI: http://127.0.0.1:18789/"
 echo "  - 若设置了 OPENCLAW_GATEWAY_TOKEN，请在 Control UI 设置中填入该令牌。"
 echo ""
 echo "首次使用建议执行: docker compose run --rm openclaw-cli onboard"
+echo "配置飞书通道: docker compose run --rm openclaw-cli config set channels.feishu.appId \"YOUR_APP_ID\""
 echo "查看日志: docker compose logs -f openclaw-gateway"

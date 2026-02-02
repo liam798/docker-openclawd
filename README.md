@@ -75,6 +75,32 @@ docker compose run --rm openclaw-cli onboard
   ```bash
   docker compose run --rm openclaw-cli channels add --channel discord --token "YOUR_BOT_TOKEN"
   ```
+- **飞书（Feishu）**  
+  飞书插件会在首次启动时自动安装。配置步骤：
+  
+  1. 在 [飞书开放平台](https://open.feishu.cn/) 创建自建应用，获取 App ID 和 App Secret
+  2. 配置事件订阅（必需）：在应用后台 → 事件与回调 → 选择「长连接」，添加 `im.message.receive_v1` 事件
+  3. 申请所需权限（见下方）
+  4. 配置插件：
+     ```bash
+     docker compose run --rm openclaw-cli config set channels.feishu.appId "cli_xxxxx"
+     docker compose run --rm openclaw-cli config set channels.feishu.appSecret "your_app_secret"
+     docker compose run --rm openclaw-cli config set channels.feishu.enabled true
+     ```
+  5. 重启 Gateway：
+     ```bash
+     docker compose restart openclaw-gateway
+     ```
+  
+  **必需权限**：
+  - `contact:user.base:readonly` - 用户信息
+  - `im:message` - 消息
+  - `im:message.p2p_msg:readonly` - 私聊
+  - `im:message.group_at_msg:readonly` - 群聊 @ 消息
+  - `im:message:send_as_bot` - 发送消息
+  - `im:resource` - 媒体资源
+  
+  详细配置与权限说明见 [飞书插件文档](https://github.com/m1heng/clawdbot-feishu)。
 
 更多通道与配置见 [官方文档 · Channels](https://docs.clawd.bot/channels)。
 
