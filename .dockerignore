@@ -1,0 +1,13 @@
+# 构建时不需要发送到 Docker 守护进程的文件
+# 本仓库镜像在容器内通过 git clone 构建，不 COPY 本地文件，仅需减小上下文
+
+.git
+.gitignore
+.env
+.env.example
+*.md
+LICENSE
+
+docker-compose.yml
+docker-setup.sh
+
