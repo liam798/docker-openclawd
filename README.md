@@ -83,8 +83,27 @@ docker compose up -d openclaw-gateway
 
 启动后：
 
-- **Control UI（仪表盘）**：浏览器打开 `http://127.0.0.1:18789/`（或宿主机 IP:18789）
-- 若设置了 `OPENCLAW_GATEWAY_TOKEN`，在 Control UI 的「设置 → token」中填入该令牌
+- **Control UI（仪表盘）**：本机访问用 **`http://127.0.0.1:18789/`** 或 **`http://localhost:18789/`**；若需从局域网/外网用 **HTTP** 访问（如 `http://192.168.x.x:18789`），需开启「允许不安全 HTTP」并重启（见下方）。
+- 若设置了 `OPENCLAW_GATEWAY_TOKEN`，在 Control UI 的「设置 → token」中填入该令牌。
+
+**从本机访问**：直接用 `http://127.0.0.1:18789/` 即可。
+
+**从其他设备访问（两种方式任选）：**
+
+1. **允许局域网/外网 HTTP 访问（简单，仅限受信任网络）**  
+   开启后可直接用 `http://<服务器IP>:18789/` 访问，需配合 token 认证：
+   ```bash
+   docker compose run --rm openclaw-cli config set gateway.controlUi.allowInsecureAuth true
+   docker compose restart openclaw-gateway
+   ```
+   然后在浏览器打开 `http://<服务器IP>:18789/`，在设置中填入 Gateway 令牌。  
+   ⚠️ 仅建议在受信任的局域网使用；暴露到公网时请改用 HTTPS。
+
+2. **保持默认安全策略（推荐公网/不受信任网络）**  
+   不开启 HTTP 时，请用以下方式之一访问，避免 1008（secure context）断开：
+   - **SSH 端口转发**：本地执行 `ssh -N -L 18789:127.0.0.1:18789 user@服务器`，浏览器打开 `http://127.0.0.1:18789/?token=你的令牌`。
+   - **Tailscale**：在 Gateway 所在机启用 Tailscale Serve，用 `https://<magicdns>/` 访问（见 [官方文档](https://docs.clawd.bot/help/faq#how-do-i-authenticate-the-dashboard-token-on-localhost-vs-remote)）。
+   - **HTTPS 反向代理**：在 Gateway 前加 Nginx/Caddy 配 TLS，用 `https://你的域名` 访问。
 
 配置与工作区会持久化在 `./data/openclaw` 与 `./data/workspace`（可在 `.env` 中修改 `OPENCLAW_CONFIG_DIR` / `OPENCLAW_WORKSPACE_DIR`）。
 
