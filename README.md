@@ -40,7 +40,7 @@ git clone https://github.com/liam798/docker-openclawd.git && cd docker-openclawd
 ```
 
 **脚本会自动完成：**
-- ✅ 自动克隆 OpenClaw 源码（若不存在）
+- ✅ 自动克隆 OpenClaw 源码（若不存在），并应用与依赖类型兼容的 TS 修复
 - ✅ 创建 `.env` 并生成 Gateway 令牌
 - ✅ 构建 Docker 镜像
 - ✅ 启动 Gateway 服务

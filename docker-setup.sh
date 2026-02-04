@@ -139,6 +139,22 @@ if [ ! -d "openclaw-src/.git" ]; then
   git clone --depth 1 https://github.com/openclaw/openclaw.git openclaw-src
 fi
 
+# 修复 OpenClaw 源码中与依赖类型不一致导致的 TS 编译错误（见 #issue）
+apply_openclaw_ts_fix() {
+  local compact="openclaw-src/src/agents/pi-embedded-runner/compact.ts"
+  local attempt="openclaw-src/src/agents/pi-embedded-runner/run/attempt.ts"
+  if [ -f "$compact" ] && [ -f "$attempt" ]; then
+    echo "[docker-setup] 应用 OpenClaw 源码 TypeScript 兼容性修复..."
+    # compact.ts: 传入函数而非字符串，满足 (defaultPrompt?: string) => string 类型
+    sed -i.bak 's/applySystemPromptOverrideToSession(session, systemPromptOverride());/applySystemPromptOverrideToSession(session, systemPromptOverride);/' "$compact" 2>/dev/null || true
+    # attempt.ts: systemPromptOverride 可能被推断为 String，安全取字符串并传入 getter
+    sed -i.bak 's/const systemPromptText = systemPromptOverride();/const systemPromptText = typeof systemPromptOverride === '\''function'\'' ? systemPromptOverride() : String(systemPromptOverride);/' "$attempt" 2>/dev/null || true
+    sed -i.bak 's/applySystemPromptOverrideToSession(session, systemPromptText);/applySystemPromptOverrideToSession(session, () => systemPromptText);/' "$attempt" 2>/dev/null || true
+    rm -f "${compact}.bak" "${attempt}.bak" 2>/dev/null || true
+  fi
+}
+apply_openclaw_ts_fix
+
 echo "[docker-setup] 构建镜像（首次较慢）..."
 docker compose build
 
