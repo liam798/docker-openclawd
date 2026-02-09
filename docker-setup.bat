@@ -56,13 +56,8 @@ if defined CONTAINER_HTTP_PROXY (
   powershell -NoProfile -Command "$c = Get-Content .env -Raw -ErrorAction SilentlyContinue; if (-not $c) { $c = '' }; $c = $c -replace '(?m)^OPENCLAW_RUNTIME_HTTP_PROXY=.*', \"OPENCLAW_RUNTIME_HTTP_PROXY=\"; if ($c -notmatch '(?m)^OPENCLAW_RUNTIME_HTTP_PROXY=') { $c = $c.TrimEnd() + \"`nOPENCLAW_RUNTIME_HTTP_PROXY=`n\" }; $c = $c -replace '(?m)^OPENCLAW_RUNTIME_HTTPS_PROXY=.*', \"OPENCLAW_RUNTIME_HTTPS_PROXY=\"; if ($c -notmatch '(?m)^OPENCLAW_RUNTIME_HTTPS_PROXY=') { $c = $c.TrimEnd() + \"`nOPENCLAW_RUNTIME_HTTPS_PROXY=`n\" }; Set-Content .env $c -NoNewline"
 )
 
-REM 若 openclaw-src 不存在则自动克隆
-if not exist "openclaw-src\.git" (
-  echo [docker-setup] 正在克隆 openclaw/openclaw 到 openclaw-src/ ...
-  git clone --depth 1 https://github.com/openclaw/openclaw.git openclaw-src
-)
-
-echo [docker-setup] 构建镜像（首次较慢）...
+REM 使用 npm 安装 OpenClaw，无需克隆源码（镜像构建时 npm install -g openclaw）
+echo [docker-setup] 构建镜像（首次较慢，将从 npm 安装 OpenClaw）...
 docker compose build
 if errorlevel 1 exit /b 1
 

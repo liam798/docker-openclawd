@@ -1,5 +1,5 @@
 # OpenClaw Gateway 镜像
-# 从本地源码构建（避免构建时访问 GitHub）
+# 使用 npm 安装 OpenClaw（无需克隆源码）
 # 文档: https://docs.clawd.bot/install/docker
 
 FROM node:22-bookworm
@@ -19,16 +19,10 @@ ENV all_proxy=${ALL_PROXY}
 ENV NO_PROXY=${NO_PROXY}
 ENV no_proxy=${NO_PROXY}
 
-# 构建时可选：指定 OpenClaw 版本（分支或 tag）
-# 保留此参数是为了兼容 docker-compose.yml；本地源码构建时不使用
-ARG OPENCLAW_VERSION=main
+# 安装的 OpenClaw 版本：latest、或具体版本号如 2026.1.30
+ARG OPENCLAW_VERSION=latest
 # 构建时可选：额外安装的 apt 包，空格分隔
 ARG OPENCLAW_DOCKER_APT_PACKAGES=""
-
-WORKDIR /app
-
-# 使用本地同步的源码
-COPY openclaw-src/ /app/
 
 # 可选：安装额外系统依赖（如 ffmpeg、build-essential）
 RUN if [ -n "${OPENCLAW_DOCKER_APT_PACKAGES}" ]; then \
@@ -36,18 +30,13 @@ RUN if [ -n "${OPENCLAW_DOCKER_APT_PACKAGES}" ]; then \
     && apt-get clean && rm -rf /var/lib/apt/lists/*; \
     fi
 
-RUN corepack enable
-
-# 依赖与构建
-RUN pnpm install --frozen-lockfile
-RUN OPENCLAW_A2UI_SKIP_MISSING=1 pnpm build
-ENV OPENCLAW_PREFER_PNPM=1
-RUN pnpm ui:build
+# 使用 npm 全局安装 OpenClaw（无需源码与构建）
+RUN npm install -g openclaw@${OPENCLAW_VERSION}
 
 ENV NODE_ENV=production
 
 # 以非 root 用户运行
 USER node
 
-WORKDIR /app
-CMD ["node", "dist/index.js"]
+# 默认启动 Gateway（具体 bind/port 由 docker-compose command 覆盖）
+CMD ["openclaw", "gateway", "--bind", "lan", "--port", "18789"]

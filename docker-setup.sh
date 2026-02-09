@@ -133,29 +133,8 @@ else
   rm -f .env.bak 2>/dev/null || true
 fi
 
-# 若 openclaw-src/ 不存在则自动克隆（构建时 COPY 进镜像）
-if [ ! -d "openclaw-src/.git" ]; then
-  echo "[docker-setup] 正在克隆 openclaw/openclaw 到 openclaw-src/ ..."
-  git clone --depth 1 https://github.com/openclaw/openclaw.git openclaw-src
-fi
-
-# 修复 OpenClaw 源码中与依赖类型不一致导致的 TS 编译错误（见 #issue）
-apply_openclaw_ts_fix() {
-  local compact="openclaw-src/src/agents/pi-embedded-runner/compact.ts"
-  local attempt="openclaw-src/src/agents/pi-embedded-runner/run/attempt.ts"
-  if [ -f "$compact" ] && [ -f "$attempt" ]; then
-    echo "[docker-setup] 应用 OpenClaw 源码 TypeScript 兼容性修复..."
-    # compact.ts: 传入函数而非字符串，满足 (defaultPrompt?: string) => string 类型
-    sed -i.bak 's/applySystemPromptOverrideToSession(session, systemPromptOverride());/applySystemPromptOverrideToSession(session, systemPromptOverride);/' "$compact" 2>/dev/null || true
-    # attempt.ts: systemPromptOverride 可能被推断为 String，安全取字符串并传入 getter
-    sed -i.bak 's/const systemPromptText = systemPromptOverride();/const systemPromptText = typeof systemPromptOverride === '\''function'\'' ? systemPromptOverride() : String(systemPromptOverride);/' "$attempt" 2>/dev/null || true
-    sed -i.bak 's/applySystemPromptOverrideToSession(session, systemPromptText);/applySystemPromptOverrideToSession(session, () => systemPromptText);/' "$attempt" 2>/dev/null || true
-    rm -f "${compact}.bak" "${attempt}.bak" 2>/dev/null || true
-  fi
-}
-apply_openclaw_ts_fix
-
-echo "[docker-setup] 构建镜像（首次较慢）..."
+# 使用 npm 安装 OpenClaw，无需克隆源码（镜像构建时 npm install -g openclaw）
+echo "[docker-setup] 构建镜像（首次较慢，将从 npm 安装 OpenClaw）..."
 docker compose build
 
 echo "[docker-setup] 启动 Gateway..."
@@ -199,7 +178,7 @@ if [ ! -f "$CONFIG_FILE" ]; then
   # 等待 Gateway 完全就绪
   echo "[docker-setup] 等待 Gateway 完全就绪..."
   for i in {1..30}; do
-    if docker compose exec openclaw-gateway node dist/index.js health --token "${GATEWAY_TOKEN:-}" >/dev/null 2>&1; then
+    if docker compose exec openclaw-gateway openclaw health --token "${GATEWAY_TOKEN:-}" >/dev/null 2>&1; then
       break
     fi
     sleep 1

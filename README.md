@@ -20,7 +20,7 @@
 ## 前置要求
 
 - Docker Desktop 或 Docker Engine + Docker Compose v2
-- 从本地源码构建：`openclaw-src/` 不存在时，一键脚本会自动克隆 [openclaw/openclaw](https://github.com/openclaw/openclaw)，无需手动准备
+- 使用 Node 安装：镜像通过 `npm install -g openclaw` 安装，无需克隆源码
 
 ## 🚀 快速开始
 
@@ -40,7 +40,7 @@ git clone https://github.com/liam798/docker-openclawd.git && cd docker-openclawd
 ```
 
 **脚本会自动完成：**
-- ✅ 自动克隆 OpenClaw 源码（若不存在），并应用与依赖类型兼容的 TS 修复
+- ✅ 从 npm 安装 OpenClaw 并构建镜像（无需源码）
 - ✅ 创建 `.env` 并生成 Gateway 令牌
 - ✅ 构建 Docker 镜像
 - ✅ 启动 Gateway 服务
@@ -69,14 +69,11 @@ docker-setup.bat
 git clone https://github.com/liam798/docker-openclawd.git
 cd docker-openclawd
 
-# 2. 若没有 openclaw-src/，需先克隆（或直接运行 docker-setup.sh 自动完成）
-# git clone --depth 1 https://github.com/openclaw/openclaw.git openclaw-src
-
-# 3. 复制环境变量并（可选）编辑
+# 2. 复制环境变量并（可选）编辑
 cp .env.example .env
 # 建议生成并填写 OPENCLAW_GATEWAY_TOKEN，例如: openssl rand -hex 24
 
-# 4. 构建并启动 Gateway
+# 3. 构建并启动 Gateway
 docker compose build
 docker compose up -d openclaw-gateway
 ```
@@ -158,6 +155,23 @@ docker compose run --rm openclaw-cli onboard
   - `im:message:send_as_bot` - 发送消息
   - `im:resource` - 媒体资源
   
+  **发消息无响应时排查**（按顺序检查）：
+  1. **事件订阅**（最常见）：飞书开放平台 → 应用 → 事件与回调 → 事件配置方式选 **「使用长连接接收事件」**，并添加 **`im.message.receive_v1`**，保存后等待生效；权限里「事件订阅」相关权限需已申请并审核通过。
+  2. **插件与开关**：`docker compose run --rm openclaw-cli plugins list` 确认有 feishu；`docker compose run --rm openclaw-cli config get channels.feishu.enabled` 为 `true`。
+  3. **appId / appSecret**：与开放平台一致，且应用已发布（至少测试版本）；改过配置后执行 `docker compose restart openclaw-gateway`。
+  4. **私聊需配对**：默认私聊策略为「配对」时，用户首次私聊机器人会收到一个 **8 位配对码**（约 1 小时有效）。管理员在服务器上执行下方命令通过配对后，该用户才能正常对话。
+  5. **群聊需 @**：群内需 **@ 机器人** 才会触发回复（可配置 `requireMention: false` 改为不要求 @）。
+  6. **看日志**：`docker compose logs -f openclaw-gateway` 看是否有 feishu 连接/鉴权/收消息相关报错。
+  
+  **飞书私聊配对步骤**（当用户首次私聊机器人并收到配对码时）：
+  1. 用户在飞书私聊里把机器人发来的 **8 位配对码**（大写字母）记下或截图给你。
+  2. 在宿主机执行，查看待配对列表（可选）：  
+     `docker compose run --rm openclaw-cli pairing list feishu`
+  3. 用配对码通过该用户：  
+     `docker compose run --rm openclaw-cli pairing approve feishu <配对码>`  
+     例如：`docker compose run --rm openclaw-cli pairing approve feishu ABCDEFGH`
+  4. 通过后，该用户再在飞书里发消息即可正常收到回复。配对码约 1 小时有效，超时需用户再发一条消息让机器人重新下发新码后再执行 `pairing approve`。
+  
   详细配置与权限说明见 [飞书插件文档](https://github.com/m1heng/clawdbot-feishu)。
 
 更多通道与配置见 [官方文档 · Channels](https://docs.clawd.bot/channels)。
@@ -169,7 +183,7 @@ docker compose run --rm openclaw-cli onboard
 | 启动 Gateway  | `docker compose up -d openclaw-gateway` |
 | 查看日志      | `docker compose logs -f openclaw-gateway` |
 | 停止          | `docker compose down` |
-| 健康检查      | `docker compose exec openclaw-gateway node dist/index.js health --token "$OPENCLAW_GATEWAY_TOKEN"` |
+| 健康检查      | `docker compose exec openclaw-gateway openclaw health --token "$OPENCLAW_GATEWAY_TOKEN"` |
 | 使用 CLI 发消息 | `docker compose run --rm openclaw-cli message send --to +1234567890 --message "Hello"` |
 
 ## 环境变量说明
@@ -177,7 +191,7 @@ docker compose run --rm openclaw-cli onboard
 | 变量 | 默认值 | 说明 |
 |------|--------|------|
 | `OPENCLAW_IMAGE` | `openclaw:local` | 使用的镜像名（不设则本地构建） |
-| `OPENCLAW_VERSION` | `main` | 构建时克隆的 openclaw 分支/tag |
+| `OPENCLAW_VERSION` | `latest` | 构建时安装的 npm 版本（如 latest、2026.1.30） |
 | `OPENCLAW_CONFIG_DIR` | `./data/openclaw` | 宿主机配置目录（挂载为 ~/.openclaw） |
 | `OPENCLAW_WORKSPACE_DIR` | `./data/workspace` | 宿主机工作区目录 |
 | `OPENCLAW_GATEWAY_PORT` | `18789` | Gateway 端口 |

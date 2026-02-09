@@ -9,7 +9,7 @@ services:
       dockerfile: Dockerfile
       network: host
       args:
-        OPENCLAW_VERSION: ${OPENCLAW_VERSION:-main}
+        OPENCLAW_VERSION: ${OPENCLAW_VERSION:-latest}
         OPENCLAW_DOCKER_APT_PACKAGES: ${OPENCLAW_DOCKER_APT_PACKAGES:-}
         HTTP_PROXY: ${HTTP_PROXY:-}
         HTTPS_PROXY: ${HTTPS_PROXY:-}
@@ -47,8 +47,7 @@ services:
     init: true
     restart: unless-stopped
     command:
-      - node
-      - dist/index.js
+      - openclaw
       - gateway
       - --bind
       - ${OPENCLAW_GATEWAY_BIND:-lan}
@@ -84,6 +83,6 @@ services:
     stdin_open: true
     tty: true
     init: true
-    entrypoint: ["node", "dist/index.js"]
+    entrypoint: ["openclaw"]
     profiles:
       - cli
