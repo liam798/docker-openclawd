@@ -20,7 +20,6 @@
 ## 前置要求
 
 - Docker Desktop 或 Docker Engine + Docker Compose v2
-- 使用 Node 安装：镜像通过 `npm install -g openclaw` 安装，无需克隆源码
 
 ## 🚀 快速开始
 
