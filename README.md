@@ -199,6 +199,53 @@ docker compose run --rm openclaw-cli onboard
 
 更多见 `.env.example` 内注释。
 
+## 国内用户：Docker 镜像加速
+
+若构建时拉取 `node:22-bookworm` 等基础镜像很慢或报错（如 `load metadata for docker.io/library/node:22-bookworm`），可配置 Docker 使用国内镜像源。
+
+**方式一：Docker Desktop**  
+打开 Docker Desktop → Settings → Docker Engine，在 JSON 中增加 `registry-mirrors`，例如：
+
+```json
+{
+  "registry-mirrors": [
+    "https://docker.1ms.run",
+    "https://docker.xuanyuan.me",
+    "https://hub.rat.dev"
+  ]
+}
+```
+
+保存后 Apply and restart。
+
+**方式二：Linux 宿主机（Docker Engine）**  
+编辑 `/etc/docker/daemon.json`（不存在则新建），加入：
+
+```json
+{
+  "registry-mirrors": [
+    "https://docker.1ms.run",
+    "https://docker.xuanyuan.me",
+    "https://hub.rat.dev"
+  ]
+}
+```
+
+然后执行 `sudo systemctl restart docker`。
+
+**常用国内/加速源（按可用性自选）：**
+
+| 镜像源 | 地址 | 说明 |
+|--------|------|------|
+| 1ms | https://docker.1ms.run | 公共加速 |
+| 玄渊 | https://docker.xuanyuan.me | 公共加速 |
+| Rat.dev | https://hub.rat.dev | 公共加速 |
+| 阿里云 | https://&lt;你的ID&gt;.mirror.aliyuncs.com | 需在[容器镜像服务](https://cr.console.aliyun.com/cn-hangzhou/instances/mirrors)获取专属地址 |
+| 腾讯云 | https://mirror.ccs.tencentyun.com | 部分地域 |
+| 中科大 | https://docker.mirrors.ustc.edu.cn | 可能限速 |
+
+配置完成后重新执行 `./docker-setup.sh` 或 `docker compose build`。
+
 ## 参考
 
 - [OpenClaw 官方 Docker 文档](https://docs.clawd.bot/install/docker)
