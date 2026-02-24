@@ -78,24 +78,6 @@ if defined CONTAINER_HTTP_PROXY (
   set PROXY_ENV=-e HTTP_PROXY= -e HTTPS_PROXY= -e http_proxy= -e https_proxy= -e NO_PROXY=* -e no_proxy=*
 )
 
-docker compose run --rm %PROXY_ENV% openclaw-cli plugins list 2>nul | findstr /i "feishu" >nul
-if errorlevel 1 (
-  echo [docker-setup] 正在安装飞书插件 @m1heng-clawd/feishu ...
-  docker compose run --rm %PROXY_ENV% openclaw-cli plugins install @m1heng-clawd/feishu >nul 2>&1
-  if errorlevel 1 (
-    echo [docker-setup] 警告: 飞书插件安装失败，可稍后手动安装:
-    if defined CONTAINER_HTTP_PROXY (
-      echo   HTTP_PROXY=%CONTAINER_HTTP_PROXY% HTTPS_PROXY=%CONTAINER_HTTPS_PROXY% docker compose run --rm openclaw-cli plugins install @m1heng-clawd/feishu
-    ) else (
-      echo   docker compose run --rm openclaw-cli plugins install @m1heng-clawd/feishu
-    )
-  ) else (
-    echo [docker-setup] 飞书插件安装成功
-  )
-) else (
-  echo [docker-setup] 飞书插件已安装
-)
-
 REM 自动执行 onboarding（若配置不存在）
 if not exist "data\openclaw\openclaw.json" (
   echo [docker-setup] 检测到首次运行，执行自动配置（onboarding）...

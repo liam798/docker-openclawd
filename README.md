@@ -11,7 +11,6 @@
 
 - 🎯 **一行命令安装**：无需手动配置，自动完成所有设置
 - ⚙️ **自动配置**：首次运行自动执行 onboarding，创建最小配置
-- 📦 **自动安装插件**：自动安装飞书插件，支持飞书/Lark 通道
 - 🐳 **完整 Docker 方案**：无需在宿主机安装 Node.js 或全局包
 - 🔒 **权限优化**：使用非 root 用户运行，更安全
 
@@ -43,7 +42,6 @@ git clone https://github.com/liam798/docker-openclawd.git && cd docker-openclawd
 - ✅ 创建 `.env` 并生成 Gateway 令牌
 - ✅ 构建 Docker 镜像
 - ✅ 启动 Gateway 服务
-- ✅ 自动安装飞书插件
 - ✅ **自动执行 onboarding 配置**（首次运行）
 
 **🎉 安装完成后即可使用！** 访问 `http://127.0.0.1:18789/` 打开 Control UI。
@@ -130,12 +128,12 @@ docker compose run --rm openclaw-cli onboard
   docker compose run --rm openclaw-cli channels add --channel discord --token "YOUR_BOT_TOKEN"
   ```
 - **飞书（Feishu）**  
-  飞书插件会在首次启动时自动安装。配置步骤：
+  OpenClawd 已内置官方飞书通道，无需安装社区插件。配置步骤：
   
   1. 在 [飞书开放平台](https://open.feishu.cn/) 创建自建应用，获取 App ID 和 App Secret
   2. 配置事件订阅（必需）：在应用后台 → 事件与回调 → 选择「长连接」，添加 `im.message.receive_v1` 事件
   3. 申请所需权限（见下方）
-  4. 配置插件：
+  4. 配置通道：
      ```bash
      docker compose run --rm openclaw-cli config set channels.feishu.appId "cli_xxxxx"
      docker compose run --rm openclaw-cli config set channels.feishu.appSecret "your_app_secret"
@@ -156,7 +154,7 @@ docker compose run --rm openclaw-cli onboard
   
   **发消息无响应时排查**（按顺序检查）：
   1. **事件订阅**（最常见）：飞书开放平台 → 应用 → 事件与回调 → 事件配置方式选 **「使用长连接接收事件」**，并添加 **`im.message.receive_v1`**，保存后等待生效；权限里「事件订阅」相关权限需已申请并审核通过。
-  2. **插件与开关**：`docker compose run --rm openclaw-cli plugins list` 确认有 feishu；`docker compose run --rm openclaw-cli config get channels.feishu.enabled` 为 `true`。
+  2. **通道开关**：`docker compose run --rm openclaw-cli config get channels.feishu.enabled` 为 `true`。
   3. **appId / appSecret**：与开放平台一致，且应用已发布（至少测试版本）；改过配置后执行 `docker compose restart openclaw-gateway`。
   4. **私聊需配对**：默认私聊策略为「配对」时，用户首次私聊机器人会收到一个 **8 位配对码**（约 1 小时有效）。管理员在服务器上执行下方命令通过配对后，该用户才能正常对话。
   5. **群聊需 @**：群内需 **@ 机器人** 才会触发回复（可配置 `requireMention: false` 改为不要求 @）。
@@ -171,8 +169,6 @@ docker compose run --rm openclaw-cli onboard
      例如：`docker compose run --rm openclaw-cli pairing approve feishu ABCDEFGH`
   4. 通过后，该用户再在飞书里发消息即可正常收到回复。配对码约 1 小时有效，超时需用户再发一条消息让机器人重新下发新码后再执行 `pairing approve`。
   
-  详细配置与权限说明见 [飞书插件文档](https://github.com/m1heng/clawdbot-feishu)。
-
 更多通道与配置见 [官方文档 · Channels](https://docs.clawd.bot/channels)。
 
 ## 常用命令

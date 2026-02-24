@@ -140,36 +140,6 @@ docker compose build
 echo "[docker-setup] 启动 Gateway..."
 docker compose up -d openclaw-gateway
 
-# 等待 Gateway 启动并自动安装飞书插件
-echo "[docker-setup] 等待 Gateway 就绪并安装飞书插件..."
-sleep 8
-
-# 自动安装飞书插件（若未安装）
-# 使用已配置的运行时代理（从 .env 读取，已转换为容器可访问地址）
-echo "[docker-setup] 检查并安装飞书插件..."
-PROXY_ENV=""
-if [ -n "$CONTAINER_HTTP_PROXY" ]; then
-  PROXY_ENV="-e HTTP_PROXY=${CONTAINER_HTTP_PROXY} -e HTTPS_PROXY=${CONTAINER_HTTPS_PROXY} -e http_proxy=${CONTAINER_HTTP_PROXY} -e https_proxy=${CONTAINER_HTTPS_PROXY} -e NO_PROXY=localhost,127.0.0.1,::1 -e no_proxy=localhost,127.0.0.1,::1"
-else
-  PROXY_ENV="-e HTTP_PROXY= -e HTTPS_PROXY= -e http_proxy= -e https_proxy= -e NO_PROXY=* -e no_proxy=*"
-fi
-
-if docker compose run --rm ${PROXY_ENV} openclaw-cli plugins list 2>/dev/null | grep -q "feishu"; then
-  echo "[docker-setup] 飞书插件已安装"
-else
-  echo "[docker-setup] 正在安装飞书插件 @m1heng-clawd/feishu ..."
-  if docker compose run --rm ${PROXY_ENV} openclaw-cli plugins install @m1heng-clawd/feishu 2>/dev/null; then
-    echo "[docker-setup] 飞书插件安装成功"
-  else
-    echo "[docker-setup] 警告: 飞书插件安装失败，可稍后手动安装:"
-    if [ -n "$CONTAINER_HTTP_PROXY" ]; then
-      echo "  HTTP_PROXY=${CONTAINER_HTTP_PROXY} HTTPS_PROXY=${CONTAINER_HTTPS_PROXY} docker compose run --rm openclaw-cli plugins install @m1heng-clawd/feishu"
-    else
-      echo "  docker compose run --rm openclaw-cli plugins install @m1heng-clawd/feishu"
-    fi
-  fi
-fi
-
 # 自动执行 onboarding（若配置不存在）
 CONFIG_FILE="./data/openclaw/openclaw.json"
 if [ ! -f "$CONFIG_FILE" ]; then
