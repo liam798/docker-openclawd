@@ -22,44 +22,26 @@
 
 ## 🚀 安装
 
-**macOS/Linux**
+**macOS / Linux**
+
 ```bash
 curl -fsSL https://raw.githubusercontent.com/liam798/docker-openclawd/main/scripts/install.sh | bash
 ```
+
 **Windows**
 
 ```powershell
 irm https://raw.githubusercontent.com/liam798/docker-openclawd/main/scripts/install.bat -OutFile install.bat; .\install.bat
 ```
 
-**脚本会自动完成：**
-- ✅ 从 npm 安装 OpenClaw 并构建镜像（无需源码）
-- ✅ 创建 `.env` 并生成 Gateway 令牌
-- ✅ 构建 Docker 镜像
-- ✅ 启动 Gateway 服务
-- ✅ **自动执行 onboarding 配置**（首次运行）
+**开启「允许不安全 HTTP」**：服务运行在容器内，默认仅允许容器内访问；宿主机通过浏览器访问 Control UI 需执行（在项目目录下）：
 
-**🎉 安装完成后即可使用！** 访问 `http://127.0.0.1:18789/` 打开 Control UI。
+```bash
+docker compose run --rm openclaw-cli config set gateway.controlUi.allowInsecureAuth true
+docker compose restart openclaw-gateway
+```
 
-
-**从其他设备访问（两种方式任选）：**
-
-1. **允许局域网/外网 HTTP 访问（简单，仅限受信任网络）**  
-   开启后可直接用 `http://<服务器IP>:18789/` 访问，需配合 token 认证：
-   ```bash
-   docker compose run --rm openclaw-cli config set gateway.controlUi.allowInsecureAuth true
-   docker compose restart openclaw-gateway
-   ```
-   然后在浏览器打开 `http://<服务器IP>:18789/`，在设置中填入 Gateway 令牌。  
-   ⚠️ 仅建议在受信任的局域网使用；暴露到公网时请改用 HTTPS。
-
-2. **保持默认安全策略（推荐公网/不受信任网络）**  
-   不开启 HTTP 时，请用以下方式之一访问，避免 1008（secure context）断开：
-   - **SSH 端口转发**：本地执行 `ssh -N -L 18789:127.0.0.1:18789 user@服务器`，浏览器打开 `http://127.0.0.1:18789/?token=你的令牌`。
-   - **Tailscale**：在 Gateway 所在机启用 Tailscale Serve，用 `https://<magicdns>/` 访问（见 [官方文档](https://docs.clawd.bot/help/faq#how-do-i-authenticate-the-dashboard-token-on-localhost-vs-remote)）。
-   - **HTTPS 反向代理**：在 Gateway 前加 Nginx/Caddy 配 TLS，用 `https://你的域名` 访问。
-
-配置与工作区会持久化在 `./data/openclaw` 与 `./data/workspace`（可在 `.env` 中修改 `OPENCLAW_CONFIG_DIR` / `OPENCLAW_WORKSPACE_DIR`）。
+**🎉 安装完成！** 访问 `http://127.0.0.1:18789/` 打开 Control UI。首次打开需携带令牌：在地址后加 `?token=你的令牌`（安装脚本会输出该令牌）。
 
 ## 可选：使用 docker-compose.override.yml 添加挂载
 
@@ -96,58 +78,32 @@ services:
 
 修改后执行 `docker compose up -d openclaw-gateway`（或先 down 再 up）使挂载生效。容器内路径可自定（如 `/host/Work`、`/host/projects` 等），按需与 Agent 或工具约定一致即可。
 
-## 首次配置（Onboarding）
+## 飞书通道配置
 
-**一键脚本会自动执行 onboarding**，创建最小配置并启动 Gateway。
-
-如需完整配置向导（模型、通道等），可手动执行：
+**1. 在 [飞书开放平台](https://open.feishu.cn/) 创建自建应用，获取 App ID 和 App Secret, 并写入 OpenClawd 配置：**
 
 ```bash
-docker compose run --rm openclaw-cli onboard
+docker compose run --rm openclaw-cli config set channels.feishu.appId "cli_xxxxx"
+docker compose run --rm openclaw-cli config set channels.feishu.appSecret "your_app_secret"
+docker compose run --rm openclaw-cli config set channels.feishu.enabled true
+docker compose restart openclaw-gateway
 ```
 
-按提示完成模型、通道等配置。配置会自动保存，无需重启 Gateway。
+**2. 事件订阅设置：**
 
-## 通道登录示例
+- 应用后台 → **事件与回调** → 事件订阅方式选 **「长连接」**（勿选 HTTP 回调）
+- 事件列表添加 **「接收消息 v2.0」**（`im.message.receive_v1`），保存后等待生效。
 
-- **WhatsApp（扫码）**  
-  ```bash
-  docker compose run --rm openclaw-cli channels login
-  ```
-- **Telegram**  
-  ```bash
-  docker compose run --rm openclaw-cli channels add --channel telegram --token "YOUR_BOT_TOKEN"
-  ```
-- **Discord**  
-  ```bash
-  docker compose run --rm openclaw-cli channels add --channel discord --token "YOUR_BOT_TOKEN"
-  ```
-- **飞书（Feishu）**  
-  OpenClawd 已内置官方飞书通道，无需安装社区插件。配置步骤：
-  
-  1. 在 [飞书开放平台](https://open.feishu.cn/) 创建自建应用，获取 App ID 和 App Secret
-  2. **配置事件订阅（必需）**：在应用后台 → **事件与回调** → 将事件订阅方式设为 **「长连接」**（不要用「HTTP 回调」）；在事件列表中添加 **「接收消息 v2.0」**（事件标识：`im.message.receive_v1`），保存后等待生效。
-  3. 申请所需权限（见下方）
-  4. 配置通道：
-     ```bash
-     docker compose run --rm openclaw-cli config set channels.feishu.appId "cli_xxxxx"
-     docker compose run --rm openclaw-cli config set channels.feishu.appSecret "your_app_secret"
-     docker compose run --rm openclaw-cli config set channels.feishu.enabled true
-     ```
-  5. 重启 Gateway：
-     ```bash
-     docker compose restart openclaw-gateway
-     ```
-  
-  **必需权限**：
-  - `contact:user.base:readonly` - 用户信息
-  - `im:message` - 消息
-  - `im:message.p2p_msg:readonly` - 私聊
-  - `im:message.group_at_msg:readonly` - 群聊 @ 消息
-  - `im:message:send_as_bot` - 发送消息
-  - `im:resource` - 媒体资源
-  
-  **发消息无响应时排查**（按顺序检查）：
+**4. 申请下方必须权限：**
+
+- `contact:user.base:readonly` - 用户信息
+- `im:message` - 消息
+- `im:message.p2p_msg:readonly` - 私聊
+- `im:message.group_at_msg:readonly` - 群聊 @ 消息
+- `im:message:send_as_bot` - 发送消息
+- `im:resource` - 媒体资源
+
+**发消息无响应时排查**（按顺序检查）：
   1. **事件订阅**（最常见）：飞书开放平台 → 应用 → **事件与回调** → 事件订阅方式必须为 **「长连接」**（使用长连接接收事件），并添加事件 **「接收消息 v2.0」**（`im.message.receive_v1`），保存后等待生效；权限里「事件订阅」相关权限需已申请并审核通过。
   2. **通道开关**：`docker compose run --rm openclaw-cli config get channels.feishu.enabled` 为 `true`。
   3. **appId / appSecret**：与开放平台一致，且应用已发布（至少测试版本）；改过配置后执行 `docker compose restart openclaw-gateway`。
@@ -163,7 +119,7 @@ docker compose run --rm openclaw-cli onboard
      `docker compose run --rm openclaw-cli pairing approve feishu <配对码>`  
      例如：`docker compose run --rm openclaw-cli pairing approve feishu ABCDEFGH`
   4. 通过后，该用户再在飞书里发消息即可正常收到回复。配对码约 1 小时有效，超时需用户再发一条消息让机器人重新下发新码后再执行 `pairing approve`。
-  
+
 更多通道与配置见 [官方文档 · Channels](https://docs.clawd.bot/channels)。
 
 ## 常用命令
@@ -189,53 +145,6 @@ docker compose run --rm openclaw-cli onboard
 | `OPENCLAW_GATEWAY_TOKEN` | （空） | Gateway 访问令牌，建议设置 |
 
 更多见 `.env.example` 内注释。
-
-## 国内用户：Docker 镜像加速
-
-若构建时拉取 `node:22-bookworm` 等基础镜像很慢或报错（如 `load metadata for docker.io/library/node:22-bookworm`），可配置 Docker 使用国内镜像源。
-
-**方式一：Docker Desktop**  
-打开 Docker Desktop → Settings → Docker Engine，在 JSON 中增加 `registry-mirrors`，例如：
-
-```json
-{
-  "registry-mirrors": [
-    "https://docker.1ms.run",
-    "https://docker.xuanyuan.me",
-    "https://hub.rat.dev"
-  ]
-}
-```
-
-保存后 Apply and restart。
-
-**方式二：Linux 宿主机（Docker Engine）**  
-编辑 `/etc/docker/daemon.json`（不存在则新建），加入：
-
-```json
-{
-  "registry-mirrors": [
-    "https://docker.1ms.run",
-    "https://docker.xuanyuan.me",
-    "https://hub.rat.dev"
-  ]
-}
-```
-
-然后执行 `sudo systemctl restart docker`。
-
-**常用国内/加速源（按可用性自选）：**
-
-| 镜像源 | 地址 | 说明 |
-|--------|------|------|
-| 1ms | https://docker.1ms.run | 公共加速 |
-| 玄渊 | https://docker.xuanyuan.me | 公共加速 |
-| Rat.dev | https://hub.rat.dev | 公共加速 |
-| 阿里云 | https://&lt;你的ID&gt;.mirror.aliyuncs.com | 需在[容器镜像服务](https://cr.console.aliyun.com/cn-hangzhou/instances/mirrors)获取专属地址 |
-| 腾讯云 | https://mirror.ccs.tencentyun.com | 部分地域 |
-| 中科大 | https://docker.mirrors.ustc.edu.cn | 可能限速 |
-
-配置完成后重新执行 `./docker-setup.sh` 或 `docker compose build`。
 
 ## 故障排查
 
@@ -264,6 +173,28 @@ docker compose run --rm openclaw-cli onboard
    ```
 
 3. 刷新 Control UI 页面，连接应恢复正常。
+
+### 镜像拉取慢或失败（国内网络）
+
+构建时拉取 `node:22-bookworm` 等基础镜像很慢或报错（如 `load metadata for docker.io/library/node:22-bookworm`），可配置 Docker 使用国内镜像源。
+
+**Docker Desktop**：Settings → Docker Engine，在 JSON 中增加 `registry-mirrors`：
+
+```json
+{
+  "registry-mirrors": [
+    "https://docker.1ms.run",
+    "https://docker.xuanyuan.me",
+    "https://hub.rat.dev"
+  ]
+}
+```
+
+保存后 Apply and restart。
+
+**Linux（Docker Engine）**：编辑 `/etc/docker/daemon.json`（不存在则新建），加入上述 `registry-mirrors` 配置后执行 `sudo systemctl restart docker`。
+
+**常用加速源**：1ms `https://docker.1ms.run`、玄渊 `https://docker.xuanyuan.me`、Rat.dev `https://hub.rat.dev`；阿里云需在[容器镜像服务](https://cr.console.aliyun.com/cn-hangzhou/instances/mirrors)获取专属地址；腾讯云 `https://mirror.ccs.tencentyun.com`、中科大 `https://docker.mirrors.ustc.edu.cn`。配置完成后重新执行 `./docker-setup.sh` 或 `docker compose build`。
 
 ## 参考
 
